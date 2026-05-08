@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRISHTI — AI Vision Assistant</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #080c14;
+    --surface:  #0d1424;
+    --panel:    #111827;
+    --border:   #1e2d47;
+    --accent:   #00c8ff;
+    --accent2:  #00ffa3;
+    --accent3:  #ffd700;
+    --accent4:  #ff6b6b;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --glow:     0 0 20px rgba(0,200,255,.35);
+    --glow2:    0 0 20px rgba(0,255,163,.35);
+  }
+
+  html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+  /* ── Layout ───────────────────────────────────────────────── */
+  .app { display: grid; grid-template-rows: 60px 1fr; grid-template-columns: 1fr 320px; height: 100vh; gap: 0; }
+  .header       { grid-column: 1 / -1; }
+  .video-col    { display: flex; flex-direction: column; overflow: hidden; }
+  .side-panel   { background: var(--surface); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; gap: 0; }
+
+  /* ── Header ───────────────────────────────────────────────── */
+  header {
+    background: linear-gradient(90deg, #0a0f1e 0%, #0d1a35 50%, #0a0f1e 100%);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    position: relative;
+  }
+  header::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: radial-gradient(circle, #00c8ff22, transparent);
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--glow);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 12px rgba(0,200,255,.35)} 50%{box-shadow:0 0 28px rgba(0,200,255,.7)} }
+
+  .logo-eye { font-size: 18px; }
+  .logo-text { font-size: 22px; font-weight: 700; letter-spacing: 3px; color: var(--accent); text-shadow: 0 0 16px rgba(0,200,255,.5); }
+  .logo-sub  { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-top: -2px; }
+
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .status-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); animation: blink 1.5s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  .award-badge {
+    font-size: 10px; padding: 3px 10px; border-radius: 20px;
+    background: linear-gradient(90deg, #b8860033, #ffd70033);
+    border: 1px solid #ffd70055;
+    color: var(--accent3);
+  }
+
+  /* ── Video Column ─────────────────────────────────────────── */
+  .video-col { padding: 16px; gap: 12px; background: var(--bg); }
+
+  .video-wrapper {
+    flex: 1;
+    position: relative;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,0,0,.6), inset 0 0 0 1px rgba(0,200,255,.08);
+  }
+  .video-wrapper::before, .video-wrapper::after {
+    content: ''; position: absolute; z-index: 2; pointer-events: none;
+  }
+  /* Corner brackets */
+  .video-wrapper::before {
+    top: 10px; left: 10px; width: 40px; height: 40px;
+    border-top: 2px solid var(--accent); border-left: 2px solid var(--accent);
+    border-radius: 4px 0 0 0;
+  }
+  .video-wrapper::after {
+    bottom: 10px; right: 10px; width: 40px; height: 40px;
+    border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent);
+    border-radius: 0 0 4px 0;
+  }
+
+  #videoFeed {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .scan-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+    animation: scan 3s linear infinite;
+    z-index: 3; pointer-events: none;
+  }
+  @keyframes scan { 0%{top:0} 100%{top:100%} }
+
+  .fps-overlay {
+    position: absolute; top: 14px; right: 16px;
+    font-size: 11px; font-family: monospace;
+    color: var(--accent2); background: rgba(0,0,0,.6);
+    padding: 2px 8px; border-radius: 4px;
+    z-index: 4;
+  }
+
+    .coord-overlay {
+    position: absolute; top: 14px; left: 16px;
+    font-size: 11px; font-family: monospace;
+    color: var(--accent2); background: rgba(0,0,0,.6);
+    padding: 2px 8px; border-radius: 4px;
+    z-index: 4;
+  }
+
+  /* ── Mode Buttons ─────────────────────────────────────────── */
+  .mode-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    padding: 10px 6px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--muted);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+    cursor: pointer; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .mode-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,.05); }
+  .mode-btn.active {
+    border-color: var(--accent); color: var(--accent);
+    background: rgba(0,200,255,.12);
+    box-shadow: 0 0 16px rgba(0,200,255,.2);
+  }
+  .mode-btn .icon { font-size: 20px; }
+
+  /* ── Side Panel ───────────────────────────────────────────── */
+  .panel-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    color: var(--muted); margin-bottom: 12px; text-transform: uppercase;
+  }
+
+  /* Controls */
+  .control-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .control-label { font-size: 13px; color: var(--text); }
+  .control-value { font-size: 11px; color: var(--muted); font-family: monospace; }
+
+  .toggle {
+    position: relative; width: 42px; height: 22px; cursor: pointer;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0; border-radius: 22px;
+    background: var(--border); transition: .25s;
+  }
+  .toggle-slider::before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; border-radius: 50%;
+    left: 3px; top: 3px;
+    background: var(--muted); transition: .25s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--accent); }
+  .toggle input:checked + .toggle-slider::before {
+    transform: translateX(20px); background: #fff;
+    box-shadow: 0 0 8px rgba(0,200,255,.7);
+  }
+
+  input[type="range"] {
+    width: 100%; -webkit-appearance: none; height: 4px;
+    background: var(--border); border-radius: 4px; outline: none;
+    cursor: pointer; margin-top: 4px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 8px rgba(0,200,255,.6); cursor: pointer;
+  }
+
+  /* Detection List */
+  #detectionList { display: flex; flex-direction: column; gap: 6px; min-height: 40px; }
+  .det-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px; border-radius: 6px;
+    background: rgba(0,200,255,.05); border: 1px solid rgba(0,200,255,.15);
+    font-size: 12px; animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+  .det-label { color: var(--text); font-weight: 500; }
+  .det-conf  { color: var(--accent); font-family: monospace; font-size: 11px; }
+  .det-bar   { flex: 1; height: 3px; background: var(--border); border-radius: 3px; margin: 0 8px; }
+  .det-fill  { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+  .empty-msg { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
+
+  /* OCR panel */
+  #ocrBox {
+    background: rgba(255,215,0,.05); border: 1px solid rgba(255,215,0,.2);
+    border-radius: 8px; padding: 12px; font-size: 13px; line-height: 1.6;
+    color: var(--text); min-height: 80px; max-height: 200px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #ocrBox:empty::before { content: 'Point camera at text…'; color: var(--muted); font-style: italic; }
+
+  .speak-btn {
+    margin-top: 8px; width: 100%; padding: 8px;
+    background: rgba(255,215,0,.1); border: 1px solid rgba(255,215,0,.3);
+    border-radius: 6px; color: var(--accent3); font-size: 12px; cursor: pointer;
+    transition: all .2s;
+  }
+  .speak-btn:hover { background: rgba(255,215,0,.2); }
+
+  /* Face panel */
+  .face-display {
+    text-align: center; padding: 16px 0;
+  }
+  .face-count-big {
+    font-size: 56px; font-weight: 700; line-height: 1;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .face-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; text-align: center;
+  }
+  .stat-value { font-size: 20px; font-weight: 700; color: var(--accent); font-family: monospace; }
+  .stat-name  { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Capability badges */
+  .caps { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cap-badge {
+    padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .cap-ok   { background: rgba(0,255,163,.1); border: 1px solid rgba(0,255,163,.3); color: var(--accent2); }
+  .cap-off  { background: rgba(255,107,107,.1); border: 1px solid rgba(255,107,107,.3); color: var(--accent4); }
+
+  /* Scroll bar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Responsive tweak ─────────────────────────────────────── */
+  @media(max-width: 900px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 60px 1fr auto; }
+    .side-panel { max-height: 300px; flex-direction: row; flex-wrap: wrap; }
+    .panel-section { flex: 1; min-width: 200px; }
+  }
+
+  /* ── Notification toast ───────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--accent);
+    color: var(--accent); font-size: 13px;
+    opacity: 0; transition: opacity .3s;
+    pointer-events: none; z-index: 999;
+    box-shadow: var(--glow);
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon"><span class="logo-eye">👁</span></div>
+      <div>
+        <div class="logo-text">DRISHTI</div>
+        <div class="logo-sub">AI VISION ASSISTANT FOR THE VISUALLY IMPAIRED</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span id="statusText">Initializing…</span>
+      </div>
+      <div class="award-badge">🏆 IIC Regional Meet 2024 · 1st Place</div>
+      <div class="award-badge">🏆 District Science Event 2026 · Under Top 5 · Among 20 Finalist</div>
+      <div class="award-badge">🏆 Winner of Inspire Manank Awards · District Lever · Currently Ongoing</div>
+
+    </div>
+  </header>
+
+  <!-- ═══ VIDEO COLUMN ══════════════════════════════════════════ -->
+  <div class="video-col">
+
+    <div class="video-wrapper">
+      <img id="videoFeed" src="/video_feed" alt="DRISHTI live feed">
+      <div class="scan-line"></div>
+      <div class="fps-overlay" id="fpsOverlay">-- FPS</div>
+    </div>
+
+    <div class="mode-bar">
+      <button class="mode-btn active" data-mode="object" onclick="setMode('object',this)">
+        <span class="icon">🔍</span>OBJECT DETECT
+      </button>
+      <button class="mode-btn" data-mode="face" onclick="setMode('face',this)">
+        <span class="icon">👤</span>FACE DETECT
+      </button>
+      <button class="mode-btn" data-mode="ocr" onclick="setMode('ocr',this)">
+        <span class="icon">📄</span>TEXT READER
+      </button>
+      <button class="mode-btn" data-mode="combined" onclick="setMode('combined',this)">
+        <span class="icon">⚡</span>COMBINED
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ═══ SIDE PANEL ════════════════════════════════════════════ -->
+  <div class="side-panel">
+
+    <!-- Controls -->
+    <div class="panel-section">
+      <div class="panel-title">Controls</div>
+
+      <div class="control-row">
+        <span class="control-label">🔊 Voice Output</span>
+        <label class="toggle">
+          <input type="checkbox" id="ttsToggle" checked onchange="setTTS(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="control-row">
+        <span class="control-label">Confidence</span>
+        <span class="control-value" id="confVal">45%</span>
+      </div>
+      <input type="range" id="confSlider" min="10" max="90" value="45"
+             oninput="updateConf(this.value)">
+    </div>
+
+    <!-- Detections -->
+    <div class="panel-section" id="objectSection">
+      <div class="panel-title">Detected Objects</div>
+      <div id="detectionList">
+        <div class="empty-msg">No objects detected</div>
+      </div>
+    </div>
+
+    <!-- Face section -->
+    <div class="panel-section" id="faceSection" style="display:none">
+      <div class="panel-title">Face Detection</div>
+      <div class="face-display">
+        <div class="face-count-big" id="faceCount">0</div>
+        <div class="face-label">Faces in Frame</div>
+      </div>
+    </div>
+
+    <!-- OCR section -->
+    <div class="panel-section" id="ocrSection" style="display:none">
+      <div class="panel-title">Recognized Text</div>
+      <div id="ocrBox"></div>
+      <button class="speak-btn" onclick="speakOCR()">🔊 Read Aloud</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel-section">
+      <div class="panel-title">Live Stats</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="statFps">--</div>
+          <div class="stat-name">FPS</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statCount">--</div>
+          <div class="stat-name">Objects</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statFaces">--</div>
+          <div class="stat-name">Faces</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statMode">OBJ</div>
+          <div class="stat-name">Mode</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Capabilities -->
+    <div class="panel-section">
+      <div class="panel-title">Capabilities</div>
+      <div class="caps">
+        <span class="cap-badge {{ 'cap-ok' if yolo else 'cap-off' }}">
+          {{ '✓' if yolo else '✗' }} YOLO Object AI
+        </span>
+        <span class="cap-badge {{ 'cap-ok' if ocr else 'cap-off' }}">
+          {{ '✓' if ocr else '✗' }} OCR Text Read
+        </span>
+        <span class="cap-badge cap-ok">✓ Face Detect</span>
+        <span class="cap-badge {{ 'cap-ok' if tts else 'cap-off' }}">
+          {{ '✓' if tts else '✗' }} Voice TTS
+        </span>
+        <span class="cap-badge {{ 'cap-ok' if tts else 'cap-off' }}">
+          ✓ Live Coordinate Locations
+        </span>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="panel-section">
+      <div class="panel-title">About</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">
+        <strong style="color:var(--text)">DRISHTI</strong> is an AI-powered<br>
+        assistive device for the visually impaired.<br><br>
+        By <strong style="color:var(--accent)">Aditya Pratap Singh</strong><br>
+        Sunbeam School, Lahartara<br><br>
+        Features: YOLO object detection,<br>
+        OCR text reading, face detection,<br>
+        and real-time voice narration.
+      </div>
+    </div>
+
+  </div><!-- side-panel -->
+
+</div><!-- app -->
+
+<div id="toast"></div>
+
+<script>
+  let currentMode = 'object';
+  let pollInterval;
+
+  // ── Mode Switching ─────────────────────────────────────────────
+  function setMode(mode, btn) {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = mode;
+
+    fetch('/set_mode', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode})
+    });
+
+    // Show/hide panels
+    document.getElementById('objectSection').style.display =
+      (mode === 'object' || mode === 'combined') ? 'block' : 'none';
+    document.getElementById('faceSection').style.display =
+      (mode === 'face' || mode === 'combined') ? 'block' : 'none';
+    document.getElementById('ocrSection').style.display =
+      mode === 'ocr' ? 'block' : 'none';
+
+    toast(`Mode: ${btn.textContent.trim()}`);
+  }
+
+  // ── TTS Toggle ─────────────────────────────────────────────────
+  function setTTS(enabled) {
+    fetch('/set_tts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled})
+    });
+    toast(enabled ? '🔊 Voice enabled' : '🔇 Voice disabled');
+  }
+
+  // ── Geolocation ───────────────────────────────────────────────
+  function pushCoords(pos) {
+    fetch('/set_coords', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude
+      })
+    });
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(pushCoords, () => {}, {
+      enableHighAccuracy: true,
+      maximumAge: 5000
+    });
+  }
+
+  // ── Confidence Slider ──────────────────────────────────────────
+  function updateConf(val) {
+    document.getElementById('confVal').textContent = val + '%';
+    fetch('/set_confidence', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({value: val / 100})
+    });
+  }
+
+  // ── Speak OCR ──────────────────────────────────────────────────
+  function speakOCR() {
+    const text = document.getElementById('ocrBox').textContent;
+    if (!text || text.includes('Point camera')) return;
+    fetch('/speak', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text})
+    });
+  }
+
+  // ── Status Polling ─────────────────────────────────────────────
+  function pollStatus() {
+    fetch('/status')
+      .then(r => r.json())
+      .then(data => {
+        // Status
+        document.getElementById('statusText').textContent = data.status;
+
+        // FPS
+        const fps = data.fps.toFixed(1);
+        document.getElementById('fpsOverlay').textContent = fps + ' FPS';
+        document.getElementById('statFps').textContent = fps;
+
+        // Mode label
+        const modeMap = {object:'OBJ', face:'FACE', ocr:'OCR', combined:'ALL'};
+        document.getElementById('statMode').textContent = modeMap[data.mode] || data.mode.toUpperCase();
+
+        // Object detections
+        const list = document.getElementById('detectionList');
+        document.getElementById('statCount').textContent = data.detected.length;
+        if (data.detected.length === 0) {
+          list.innerHTML = '<div class="empty-msg">No objects detected</div>';
+        } else {
+          // Deduplicate by label
+          const seen = new Map();
+          data.detected.forEach(d => {
+            if (!seen.has(d.label) || seen.get(d.label).confidence < d.confidence)
+              seen.set(d.label, d);
+          });
+          list.innerHTML = [...seen.values()].map(d => `
+            <div class="det-item">
+              <span class="det-label">${d.label}</span>
+              <div class="det-bar"><div class="det-fill" style="width:${d.confidence*100}%"></div></div>
+              <span class="det-conf">${(d.confidence*100).toFixed(0)}%</span>
+            </div>
+          `).join('');
+        }
+
+        // Face count
+        document.getElementById('faceCount').textContent = data.face_count;
+        document.getElementById('statFaces').textContent = data.face_count;
+
+        // OCR
+        const ocrBox = document.getElementById('ocrBox');
+        if (data.ocr_text && data.ocr_text !== ocrBox.textContent) {
+          ocrBox.textContent = data.ocr_text;
+        }
+
+        // TTS sync
+        document.getElementById('ttsToggle').checked = data.tts;
+      })
+      .catch(() => {});
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  // ── Init ───────────────────────────────────────────────────────
+  pollInterval = setInterval(pollStatus, 350);
+  pollStatus();
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    const map = {'1':'object','2':'face','3':'ocr','4':'combined'};
+    if (map[e.key]) {
+      const btn = document.querySelector(`[data-mode="${map[e.key]}"]`);
+      if (btn) setMode(map[e.key], btn);
+    }
+    if (e.key.toLowerCase() === 'v') {
+      const tog = document.getElementById('ttsToggle');
+      tog.checked = !tog.checked;
+      setTTS(tog.checked);
+    }
+    if (e.key.toLowerCase() === 'r') {
+      fetch('/speak_objects', { method: 'POST' });
+      toast('🔊 Reading detections…');
+    }
+  });
+</script>
+
+</body>
+</html>

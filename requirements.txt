@@ -1,0 +1,10 @@
+# DRISHTI Demo — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+flask>=3.0.0
+opencv-python>=4.9.0
+numpy>=1.24.0
+ultralytics>=8.0.0      # YOLOv8 — auto-downloads yolov8n.pt on first run
+Pillow>=10.0.0
+pytesseract>=0.3.10     # Requires Tesseract-OCR installed on system
+pyttsx3>=2.90           # Offline text-to-speech
