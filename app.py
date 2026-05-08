@@ -10,7 +10,6 @@ import threading
 import time
 import queue
 import json
-import base64
 import io
 import os
 import sys
@@ -26,20 +25,8 @@ except ImportError:
     YOLO_AVAILABLE = False
     print("[WARN] ultralytics not installed. Object detection disabled.")
 
-try:
-    import pytesseract
-    from PIL import Image
-    OCR_AVAILABLE = True
-except ImportError:
-    OCR_AVAILABLE = False
-    print("[WARN] pytesseract/PIL not installed. OCR disabled.")
-
-try:
-    import pyttsx3
-    TTS_AVAILABLE = True
-except ImportError:
-    TTS_AVAILABLE = False
-    print("[WARN] pyttsx3 not installed. TTS disabled.")
+OCR_AVAILABLE = False
+TTS_AVAILABLE = False
 
 # ─── App Setup ───────────────────────────────────────────────────────────────
 
@@ -65,44 +52,14 @@ state = {
     "frame_count": 0,
 }
 
-tts_queue = queue.Queue(maxsize=5)
 output_frame = None
 frame_lock = threading.Lock()
 
-# ─── TTS Worker ──────────────────────────────────────────────────────────────
-
-def tts_worker():
-    if not TTS_AVAILABLE:
-        return
-    try:
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 160)
-        engine.setProperty('volume', 0.9)
-        voices = engine.getProperty('voices')
-        if voices:
-            engine.setProperty('voice', voices[0].id)
-    except Exception as e:
-        print(f"[TTS] Init error: {e}")
-        return
-
-    while state["running"]:
-        try:
-            text = tts_queue.get(timeout=1)
-            if text and state["tts_enabled"]:
-                engine.say(text)
-                engine.runAndWait()
-        except queue.Empty:
-            pass
-        except Exception as e:
-            print(f"[TTS] Error: {e}")
+# ─── TTS Compatibility Stub ───────────────────────────────────────────────────
 
 def speak(text):
-    if not TTS_AVAILABLE or not state["tts_enabled"] or not text:
-        return
-    try:
-        tts_queue.put_nowait(text)
-    except queue.Full:
-        pass
+    # Speech feature removed; preserve interface for API compatibility.
+    return
 
 # ─── Model Loading ───────────────────────────────────────────────────────────
 
@@ -208,22 +165,6 @@ def detect_faces(frame):
     return count, annotated
 
 
-def run_ocr(frame):
-    if not OCR_AVAILABLE:
-        return "OCR not available"
-    try:
-        # Preprocess for better OCR
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
-        _, thresh = cv2.threshold(gray, 0, 255,
-                                  cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        pil_img = Image.fromarray(thresh)
-        text = pytesseract.image_to_string(pil_img, config='--psm 6').strip()
-        return text if text else ""
-    except Exception as e:
-        return f"OCR error: {e}"
-
-
 def draw_overlay(frame, mode, detections, face_count, ocr_text, fps):
     h, w = frame.shape[:2]
     overlay = frame.copy()
@@ -310,9 +251,6 @@ def camera_thread():
         cap.set(cv2.CAP_PROP_FPS, 30)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-    ocr_cooldown = 0
-    OCR_EVERY = 15  # frames between OCR runs
-
     while state["running"]:
         t0 = time.time()
 
@@ -345,14 +283,6 @@ def camera_thread():
             elif mode == "face":
                 face_count, frame = detect_faces(frame)
                 state["face_count"] = face_count
-
-            elif mode == "ocr":
-                ocr_cooldown += 1
-                if ocr_cooldown >= OCR_EVERY:
-                    ocr_cooldown = 0
-                    ocr_text = run_ocr(frame)
-                    if ocr_text and ocr_text != state["ocr_text"]:
-                        state["ocr_text"] = ocr_text
 
             elif mode == "combined":
                 detections, frame = detect_objects(frame)
@@ -399,8 +329,8 @@ def gen_frames():
 def index():
     return render_template("index.html",
                            yolo=YOLO_AVAILABLE,
-                           ocr=OCR_AVAILABLE,
-                           tts=TTS_AVAILABLE)
+                           ocr=False,
+                           tts=False)
 
 
 @app.route("/video_feed")
@@ -486,9 +416,6 @@ def startup():
     load_models()
     t_cam = threading.Thread(target=camera_thread, daemon=True)
     t_cam.start()
-    if TTS_AVAILABLE:
-        t_tts = threading.Thread(target=tts_worker, daemon=True)
-        t_tts.start()
     speak("DRISHTI is ready. Welcome.")
 
 
